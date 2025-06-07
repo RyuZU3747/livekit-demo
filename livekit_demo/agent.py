@@ -1,25 +1,6 @@
-from dotenv import load_dotenv
-from livekit.agents import RunContext, JobContext, WorkerOptions, cli, function_tool, tts, NOT_GIVEN, llm
-from livekit.agents.voice import Agent, AgentSession
-from enum import Enum
-from livekit.plugins import openai, silero, cartesia
-from livekit.plugins.turn_detector.multilingual import MultilingualModel
-from pydantic import BaseModel
-from typing import Dict, Optional, override
-from dataclasses import dataclass
-from mem0 import AsyncMemoryClient
-from basic_agent import BaseAgent
-import uuid
-
-@dataclass
-class UserData:
-    agents: Dict[str, Agent]
-    prev_agent: Optional[Agent]
-    user_id: str
-
-
-RunContext_T = RunContext[UserData]
-
+from livekit.agents import function_tool
+from .basic_agent import BaseAgent
+from .user_data import UserData, RunContext_T
 class MyAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
@@ -70,7 +51,6 @@ class SalesAgent(BaseAgent):
               - 일본어 회화 수업: 300,000원 / 10회
               - 일본어 회화 수업: 400,000원 / 10회
             """,
-            tts=openai.TTS(voice="shimmer"),
         )
     
     async def on_enter(self) -> None:
@@ -90,49 +70,3 @@ class SalesAgent(BaseAgent):
         print('SalesAgent on_enter', chat_ctx.items)
         await self.update_chat_ctx(chat_ctx)
         self.session.generate_reply(instructions="사용자에게 인사를 해. 일본어 배우러 왔냐고 물어봐. 가격얘긴 하지 말고")
-
-
-async def entrypoint(ctx: JobContext):
-    await ctx.connect()
-    agent = MyAgent()
-    sales_agent = SalesAgent()
-
-    session = AgentSession[UserData](
-        stt=openai.STT(
-            language="ko",
-        ),
-        llm=openai.LLM(
-            model="gpt-4o-mini",
-        ),
-        tts=openai.TTS(voice="alloy"),
-        vad=silero.VAD.load(),
-        turn_detection=MultilingualModel(),
-        userdata=UserData(
-            agents={
-                "my": agent,
-                "sales": sales_agent,
-            },
-            prev_agent=None,
-            user_id="soma123",
-        ),
-    )
-
-    await session.start(
-        agent=agent,
-        room=ctx.room,
-    )
-
-def main():
-    """애플리케이션 메인 함수."""
-    load_dotenv(dotenv_path=".env.local")
-
-    # CLI 실행
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-        ),
-    )
-
-
-if __name__ == "__main__":
-    main() 
